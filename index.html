@@ -2136,6 +2136,8 @@ $('menuBtn').onclick  = ()=>{ state='menu'; showOverlay('menu'); $('hud').classL
 $('resumeBtn').onclick = togglePause;
 $('muteBtn').onclick  = toggleMute;
 $('empBtn').onclick   = tryEMP;
+// 强制初始仅显示主菜单：统一隐藏其它所有界面层，杜绝初始遮挡
+document.querySelectorAll('.overlay').forEach(o=>{ if(o.id!=='menu') o.classList.add('hidden'); });
 loadAch();                                       // 载入成就存档
 $('hallBtn').onclick  = ()=>{ renderHall(); showOverlay('hall'); };
 $('hallClose').onclick = ()=>{ showOverlay('menu'); };
