@@ -170,18 +170,29 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:cro
 
 /* 勋章展馆 */
 .hall{background:rgba(3,10,20,.9)}
-.hall-panel{width:min(660px,92vw);max-height:82vh;overflow:auto;padding:22px;border:1px solid var(--line);
+.hall-panel{width:min(680px,94vw);max-height:86vh;display:flex;flex-direction:column;padding:18px 20px;border:1px solid var(--line);
   border-radius:14px;background:linear-gradient(160deg,rgba(8,22,38,.96),rgba(3,10,20,.97));
   box-shadow:0 0 60px rgba(0,240,255,.18)}
-.hall-panel::-webkit-scrollbar{width:8px}
-.hall-panel::-webkit-scrollbar-thumb{background:#124a5e;border-radius:4px}
-.hall-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.hall-head{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:10px}
 .hall-head .title{font-size:26px}
 .hall-head .title span{color:var(--magenta)}
-.hall-stat{font-size:12px;color:#7fa3b5;letter-spacing:.2em}
+.hall-stat{font-size:12px;color:#7fa3b5;letter-spacing:.2em;white-space:nowrap}
 .hall-stat b{color:var(--amber);font-size:16px}
+#hallGrid{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 .hall-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 2px}
 @media(max-width:560px){.hall-grid{grid-template-columns:repeat(2,1fr)}}
+.st-grid{grid-template-columns:repeat(3,1fr)}
+@media(max-width:760px){.st-grid{grid-template-columns:repeat(2,1fr)}}
+.st-node{border:1px solid rgba(127,163,181,.28);border-radius:12px;padding:12px 10px;text-align:center;
+  background:linear-gradient(160deg,rgba(0,240,255,.07),rgba(255,45,77,.05));transition:transform .15s}
+.st-node.cur{border-color:var(--magenta);box-shadow:0 0 16px rgba(255,45,77,.35);transform:translateY(-2px)}
+.st-node.locked{opacity:.45;filter:grayscale(1);background:rgba(255,255,255,.02)}
+.st-node .st-icon{font-size:26px;margin-bottom:4px}
+.st-node .st-n{font-size:10px;color:#7fa3b5;letter-spacing:.22em}
+.st-node .st-name{font-size:14px;font-weight:700;color:var(--c);margin:3px 0 2px;letter-spacing:.06em}
+.st-node .st-desc{font-size:10px;color:#5f7f92;line-height:1.5;min-height:30px}
+.st-node .st-go{margin-top:8px;padding:6px 14px;font-size:11px}
+.st-node .st-lock{font-size:10px;color:#5f7f92;margin-top:10px;letter-spacing:.08em}
 .ach-card{border:1px solid rgba(127,163,181,.25);border-radius:12px;padding:14px 12px;text-align:center;
   background:rgba(255,255,255,.03);transition:transform .15s}
 .ach-card.locked{opacity:.4;filter:grayscale(1)}
@@ -262,6 +273,7 @@ footer.help b{color:#7fa3b5}
           <span><b>WASD</b>移动</span><span><b>鼠标</b>瞄准射击</span><span><b>Q</b>EMP脉冲</span><span><b>P</b>暂停</span>
         </div>
         <button id="startBtn" class="btn">接入战场</button>
+        <button id="stageBtn" class="btn ghost" style="margin-top:10px">⚔ 战役选关</button>
         <button id="hallBtn" class="btn ghost" style="margin-top:10px">勋章展馆</button>
       </div>
     </div>
@@ -310,15 +322,55 @@ footer.help b{color:#7fa3b5}
     <div id="dmgfx"></div>
   </div>
 
+  <div id="stageSel" class="overlay hidden">
+    <div class="hall-panel">
+      <div class="hall-head">
+        <div class="title">战役<span>选关</span></div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="hall-stat">已通关 <b id="stGot">0</b>/<span id="stTotal">0</span></div>
+          <button id="stX" class="btn ghost" style="padding:3px 12px;margin:0">✕</button>
+        </div>
+      </div>
+      <p style="flex:none;margin:0 0 2px;font-size:11px;color:#7fa3b5;letter-spacing:.18em;line-height:1.6">线性战役 · 逐关解锁，不可越级挑战 · 每关目标：击败本关 BOSS</p>
+      <div id="stGrid" class="hall-grid st-grid"></div>
+      <div style="flex:none;display:flex;justify-content:center;padding-top:8px">
+        <button id="stBack" class="btn ghost">返回基地</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 战役通关结算 -->
+  <div id="stageWin" class="overlay hidden">
+    <div class="panel" style="text-align:center">
+      <div class="title" style="font-size:34px">关卡通关</div>
+      <div style="font-size:13px;color:#7fa3b5;margin:8px 0 2px;letter-spacing:.2em">已击破战争机器</div>
+      <div id="swName" class="title" style="font-size:24px;color:var(--amber);margin-bottom:6px"></div>
+      <div class="stats" style="justify-content:center">
+        <div><b id="swScore">0</b></div>
+        <div><b id="swKills">0</b></div>
+      </div>
+      <p style="font-size:11px;color:#5f7f92;letter-spacing:.15em;margin:4px 0 0">第 <b id="swNum" style="color:var(--c)">1</b> 关已完成 · 第 <b id="swNxt"></b> 关已解锁</p>
+      <div style="display:flex;gap:12px;margin-top:18px;justify-content:center">
+        <button id="swNext" class="btn">下一关</button>
+        <button id="swBack" class="btn ghost">返回选关</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 勋章展馆 -->
   <div id="hall" class="overlay hall hidden">
     <div class="hall-panel">
       <div class="hall-head">
-        <div class="title" style="font-size:26px">勋章<span>展馆</span></div>
-        <div class="hall-stat">已解锁 <b id="hallGot">0</b>/<span id="hallTotal">0</span></div>
+        <div class="title">勋章<span>展馆</span></div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="hall-stat">已解锁 <b id="hallGot">0</b>/<span id="hallTotal">0</span></div>
+          <button id="hallX" class="btn ghost" style="padding:3px 12px;margin:0">✕</button>
+        </div>
       </div>
       <div id="hallGrid" class="hall-grid"></div>
-      <button id="hallClose" class="btn ghost">返回基地</button>
+      <div style="flex:none;display:flex;justify-content:center;padding-top:8px">
+        <button id="hallClose" class="btn ghost">返回基地</button>
+      </div>
     </div>
   </div>
 
@@ -506,6 +558,25 @@ const ACH_TIER = { bronze:'#cd7f32', silver:'#c0c0c0', gold:'#ffd700', diamond:'
 /* 跨局累计统计 + 历史峰值（据此判定成就，跨局累加） */
 const stats = { kills:0, bossKill:0, empUses:0, nukes:0, items:0, upgrades:0 };
 const peak  = { maxWave:0, maxScore:0, maxKills:0 };   // 历史最佳（单局值）
+
+// ---------- 战役 / 关卡系统 ----------
+/* 线性战役章节：第 k 关的目标 = 击败第 k 台 BOSS（波 5k）。不可越级，逐关解锁。 */
+const STAGES = [
+  { n:1,  name:'铁幕初启',  desc:'单兵突入敌阵 · 击败首台战争机器', icon:'🎯' },
+  { n:2,  name:'钢铁洪流',  desc:'敌军量产 · 击败第 2 台 BOSS',      icon:'⚙' },
+  { n:3,  name:'电磁风暴',  desc:'弹幕升级 · 击败第 3 台 BOSS',      icon:'⚡' },
+  { n:4,  name:'深渊巢穴',  desc:'召唤小兵 · 击败第 4 台 BOSS',      icon:'🕳' },
+  { n:5,  name:'灭世猎手',  desc:'追踪弹雨 · 击败第 5 台 BOSS',      icon:'🧿' },
+  { n:6,  name:'钢铁神殿',  desc:'狂暴冲击 · 击败第 6 台 BOSS',      icon:'🏛' },
+  { n:7,  name:'黑暗再造',  desc:'高频弹幕 · 击败第 7 台 BOSS',      icon:'🌑' },
+  { n:8,  name:'末日审判',  desc:'极限围剿 · 击败第 8 台 BOSS',      icon:'🔥' },
+  { n:9,  name:'最终堡垒',  desc:'铁幕暴君 · 击败第 9 台 BOSS',      icon:'☠' },
+];
+const STAGE_KEY = 'neonTankStage';
+let stageMax = 1;      // 已解锁的最高关卡（1-based，第 1 关默认解锁）
+let stageK   = 0;      // 当前战役关卡：0 = 自由无尽模式
+function loadStage(){ try{ const r = localStorage.getItem(STAGE_KEY); stageMax = Math.min(STAGES.length, Math.max(1, +r||1)); }catch(e){} }
+function saveStage(){ try{ localStorage.setItem(STAGE_KEY, String(stageMax)); }catch(e){} }
 const ACHS = [
   { id:'first-kill', name:'初露锋芒', desc:'完成第 1 次击杀', tier:'bronze', icon:'🎯', test:()=>stats.kills>=1 },
   { id:'kill-10',    name:'猎手老兵', desc:'累计击杀 10 台敌军', tier:'bronze', icon:'⚔', test:()=>stats.kills>=10 },
@@ -865,12 +936,56 @@ function resetGame(){
   loadMap(0);
   syncHud();
 }
-function startGame(){
+function startGame(startWv){
   resetGame();
   state='playing';
   showOverlay(null);
   $('hud').classList.remove('hidden');
-  startWave(1);
+  startWave(startWv||1);
+}
+// 部署某一战役关卡：起始波 = 5*(k-1)+1，击败本关 BOSS（波 5k, idx=k）即通关
+function startStage(k){
+  stageK = clamp(k, 1, STAGES.length);
+  startGame(5*(stageK-1)+1);
+  $('bossbar').classList.add('hidden');
+}
+// 战役通关：解锁下一关并进入胜利结算
+function stageWin(){
+  stageMax = Math.max(stageMax, stageK+1);
+  saveStage();
+  $('swNum').textContent = stageK;
+  $('swName').textContent = STAGES[stageK-1].name;
+  $('swScore').textContent = '得分 '+score;
+  $('swKills').textContent = '击杀 '+kills;
+  $('swNxt').textContent = stageK+1 <= STAGES.length ? (stageK+1) : '—';
+  $('swNext').disabled = stageK+1 > STAGES.length;
+  $('swNext').style.opacity = (stageK+1 > STAGES.length) ? '.4' : '1';
+  state='stagewin';
+  $('hud').classList.add('hidden');
+  showOverlay('stageWin');
+  Snd.crystal();
+}
+// 渲染战役选关面板：锁定关卡不可点击，避免越级
+function renderStages(){
+  const g = $('stGrid'); g.innerHTML='';
+  for(const s of STAGES){
+    const unlocked = s.n <= stageMax;
+    const cur = (s.n===stageK);
+    const d = document.createElement('div');
+    d.className = 'st-node' + (unlocked?'':' locked') + (cur?' cur':'');
+    d.innerHTML =
+      '<div class="st-icon">'+s.icon+'</div>'+
+      '<div class="st-n">第 '+s.n+' 关</div>'+
+      '<div class="st-name">'+s.name+'</div>'+
+      '<div class="st-desc">'+s.desc+'</div>'+
+      (unlocked
+        ? '<button class="btn st-go">'+(cur?'重打本关':'进入战斗')+'</button>'
+        : '<div class="st-lock">🔒 需通关第 '+(s.n-1)+' 关解锁</div>');
+    if(unlocked) d.querySelector('.st-go').onclick = ()=>{ startStage(s.n); };
+    g.appendChild(d);
+  }
+  $('stGot').textContent = stageMax-1;   // 已通关数
+  $('stTotal').textContent = STAGES.length;
 }
 function startWave(n){
   wave = n;
@@ -955,6 +1070,10 @@ function moveTank(t,dx,dy,dt){
     const cx = Math.round((t.px-CELL)/TILE)*TILE + CELL;
     if(Math.abs(cx-t.px) < 15) t.px = lerp(t.px, cx, Math.min(1, 12*dt));
   }
+  // 限制在战场区内，防止开出地图边界消失
+  const m = t.size/2;
+  t.px = clamp(t.px, m, W-m);
+  t.py = clamp(t.py, m, H-m);
   t.cx = clamp(Math.floor(t.px/TILE),0,COLS-1);
   t.cy = clamp(Math.floor(t.py/TILE),0,ROWS-1);
 }
@@ -1484,6 +1603,11 @@ function hitBoss(dmg){
     addFloat(b.px,b.py-30,'+'+(2000*b.idx),'#ffb300',18);
     finaleBoss(b);
     $('bossbar').classList.add('hidden');
+    // 战役模式：击败本关目标 BOSS（idx === stageK）→ 通关解锁下一关
+    if(stageK>0 && b.idx===stageK){
+      setTimeout(()=>stageWin(), 1500);
+      return;
+    }
     setTimeout(()=>{ boss=null; }, 100);
   }
 }
@@ -1653,7 +1777,7 @@ function banner(h,p2,danger){
   bannerTO = setTimeout(()=>el.classList.add('hidden'), danger?2600:1900);
 }
 function showOverlay(id){
-  ['menu','upgrade','pause','gameover'].forEach(x=>$(x).classList.toggle('hidden', x!==id));
+  ['menu','upgrade','pause','gameover','hall','stageSel','stageWin'].forEach(x=>$(x).classList.toggle('hidden', x!==id));
 }
 function toggleMute(){
   Snd.muted = !Snd.muted;
@@ -2130,8 +2254,8 @@ function loop(ts){
 requestAnimationFrame(loop);
 
 // ---------- UI 事件 ----------
-$('startBtn').onclick = ()=>{ Snd.init(); startGame(); };
-$('retryBtn').onclick = ()=>{ Snd.init(); startGame(); };
+$('startBtn').onclick = ()=>{ Snd.init(); stageK=0; startGame(); };
+$('retryBtn').onclick = ()=>{ Snd.init(); if(stageK>0) startStage(stageK); else startGame(); };
 $('menuBtn').onclick  = ()=>{ state='menu'; showOverlay('menu'); $('hud').classList.add('hidden'); };
 $('resumeBtn').onclick = togglePause;
 $('muteBtn').onclick  = toggleMute;
@@ -2139,8 +2263,15 @@ $('empBtn').onclick   = tryEMP;
 // 强制初始仅显示主菜单：统一隐藏其它所有界面层，杜绝初始遮挡
 document.querySelectorAll('.overlay').forEach(o=>{ if(o.id!=='menu') o.classList.add('hidden'); });
 loadAch();                                       // 载入成就存档
+loadStage();                                     // 载入战役进度
+$('stageBtn').onclick = ()=>{ renderStages(); showOverlay('stageSel'); };
+$('stX').onclick     = ()=>{ showOverlay('menu'); };
+$('stBack').onclick  = ()=>{ showOverlay('menu'); };
 $('hallBtn').onclick  = ()=>{ renderHall(); showOverlay('hall'); };
 $('hallClose').onclick = ()=>{ showOverlay('menu'); };
+  $('hallX').onclick     = ()=>{ showOverlay('menu'); };
+$('swNext').onclick  = ()=>{ const k=stageK+1; if(k<=STAGES.length){ startStage(k); } };
+$('swBack').onclick  = ()=>{ stageK=0; renderStages(); showOverlay('stageSel'); };
 
 // 切到后台时自动暂停，防止回来时计时异常
 document.addEventListener('visibilitychange', ()=>{
