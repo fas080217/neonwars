@@ -908,7 +908,7 @@ function makePlayer(){
     speed:170, r:19, size:38,
     hp:100, maxHp:100, shield:30, maxShield:30, shRegenT:0,
     cool:0, fireRate:2.6, dmg:10, lanes:1, pierce:0, magnet:60,
-    empEff:1, regen:0, thorn:0, bspeed:1,
+    empEff:1, regen:0, thorn:0, bspeed:1, homing:0, splash:0, auto:0,
     xp:0, level:1, xpNext:20,
     inv:1.5, tripleT:0, trackOff:0, hitFlash:0, muzzle:0,
   };
@@ -1026,6 +1026,7 @@ function fire(x,y,ang,o){
     x, y, vx:Math.cos(ang)*o.speed, vy:Math.sin(ang)*o.speed,
     dmg:o.dmg, hostile:!!o.hostile, pierce:o.pierce||0, reflect:o.reflect||0,
     r:o.r||4, color:o.color, life:o.life||2.2, big:!!o.big, trail:[],
+    spd:o.spd||o.speed, homing:o.homing||0, splash:o.splash||0,
   });
 }
 
@@ -1222,7 +1223,7 @@ function updatePlayer(dt){
   else if(!isTouch || !touchState.move) p.turretAng = angLerp(p.turretAng, angTo(p.px,p.py,mouse.x,mouse.y), Math.min(1,20*dt));
 
   // 射击
-  const wantFire = mouse.down || keys.Space || keys.KeyJ || touchState.firing;
+  const wantFire = mouse.down || keys.Space || keys.KeyJ || touchState.firing || (p.auto>0);
   if(wantFire && p.cool<=0){
     p.cool = 1/p.fireRate;
     const lanes = p.lanes + (p.tripleT>0?2:0);
@@ -1230,7 +1231,7 @@ function updatePlayer(dt){
     for(let i=0;i<lanes;i++){
       const off = (i-(lanes-1)/2)*spread;
       fire(p.px+Math.cos(p.turretAng)*22, p.py+Math.sin(p.turretAng)*22, p.turretAng+off,
-        { speed:Math.round(520*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:'#00f0ff', reflect:0 });
+        { speed:Math.round(520*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:'#00f0ff', reflect:0, homing:p.homing, splash:p.splash });
     }
     p.muzzle = .07; Snd.shoot();
     addPart({ kind:'flash', x:p.px+Math.cos(p.turretAng)*26, y:p.py+Math.sin(p.turretAng)*26, life:.06, max:.06, color:'#aef7ff', r:10 });
@@ -1414,6 +1415,11 @@ const UPGRADES = [
   { id:'bspeed',tag:'ＢVL', name:'弹道加速', desc:'子弹飞行速度 +30%', color:'#00f0ff', apply:p=>p.bspeed*=1.3 },
   { id:'burst', tag:'BRST',name:'复仇连发', desc:'每发并行弹道 +1（可三连/多连发）', color:'#ffb300', apply:p=>p.lanes=Math.min(p.lanes+1,7), max:p=>p.lanes>=7 },
   { id:'nova',  tag:'NVA', name:'终焉弹幕', desc:'追加一条扇面散射弹道', color:'#ff2e88', apply:p=>p.lanes=Math.min(p.lanes+2,8), max:p=>p.lanes>=8 },
+  { id:'auto',  tag:'AUTO',name:'自律炮组', desc:'自动持续开火，无需按住', color:'#ffb300', apply:p=>p.auto=Math.min(p.auto+1,1), max:p=>p.auto>=1 },
+  { id:'homing',tag:'HOM', name:'追踪导弹', desc:'子弹自动追踪最近敌人', color:'#ff5e3a', apply:p=>p.homing=Math.min(p.homing+1,3), max:p=>p.homing>=3 },
+  { id:'splash',tag:'SPL', name:'爆破弹头', desc:'命中产生范围爆炸溅射敌军', color:'#ffb300', apply:p=>p.splash=Math.min(p.splash+1,3), max:p=>p.splash>=3 },
+  { id:'over',  tag:'OVR', name:'高能炮芯', desc:'炮弹伤害 +40%', color:'#ff2e88', apply:p=>p.dmg*=1.4 },
+  { id:'rof2',  tag:'RF2', name:'极速连发', desc:'射击频率 +25%（可叠加）', color:'#00f0ff', apply:p=>p.fireRate*=1.25 },
 ];
 let upPool = [];
 function openUpgrade(){
@@ -1538,12 +1544,12 @@ function killEnemy(e){
   else explode(e.px,e.py,e.color,1);
   Snd.boom(); shake = Math.max(shake, 4);
   score += e.score; addFloat(e.px,e.py-14,'+'+e.score, e.color);
-  addExp(e.exp);   // 击杀直接获得经验（不再只靠捡水晶），升级更快
-  // 掉落能量水晶
-  const n = randi(1,2);
+  addExp(e.exp*2);   // 击杀获得经验翻倍，升级更快
+  // 掉落能量水晶：原地轻缓滑落，便于磁吸拾取（不再满图飞）
+  const n = randi(2,3);
   for(let i=0;i<n;i++){
     const a=rand(0,TAU);
-    crystals.push({ x:e.px, y:e.py, vx:Math.cos(a)*rand(40,120), vy:Math.sin(a)*rand(40,120), exp:2, t:rand(0,TAU) });
+    crystals.push({ x:e.px+Math.cos(a)*rand(18,36), y:e.py+Math.sin(a)*rand(18,36), vx:rand(-12,12), vy:rand(-6,14), exp:3, t:rand(0,TAU) });
   }
   // 概率掉道具
   if(Math.random()<.09){
@@ -1813,8 +1819,8 @@ function finaleBoss(b){
     addPart({ kind:'shock', x, y, life:.7, max:.7, color:'#ffb300', r0:20, r1:260 });
     timeScale = Math.max(timeScale, .4);
   }, 320);
-  // 能量水晶暴雨
-  for(let i=0;i<30;i++) crystals.push({ x:x+rand(-60,60), y:y+rand(-60,60), vx:rand(-220,220), vy:rand(-220,60), exp:3, t:rand(0,TAU) });
+  // 能量水晶暴雨（轻缓散布，便于磁吸拾取）
+  for(let i=0;i<30;i++) crystals.push({ x:x+rand(-30,30), y:y+rand(-30,30), vx:rand(-24,24), vy:rand(-24,30), exp:3, t:rand(0,TAU) });
   drops.push({ x:x+rand(-20,20), y:y+rand(-20,20), type:pick(['heal','nuke','shield']), t:0 });
 }
 
@@ -1830,6 +1836,17 @@ function updateBullets(dt){
       const aim = angTo(b.x,b.y,player.px,player.py);
       const na = angLerp(cur, aim, Math.min(1, 2.6*dt));
       b.vx = Math.cos(na)*b.spd; b.vy = Math.sin(na)*b.spd;
+    }
+    // 追踪导弹：朝最近敌人转向（我弹）
+    if(!b.hostile && b.homing>0 && enemies.length){
+      let ne=null, nd=1e9;
+      for(const e of enemies) if(!e.dead){ const d=dist(b.x,b.y,e.px,e.py); if(d<nd){nd=d;ne=e;} }
+      if(ne){
+        const cur = Math.atan2(b.vy,b.vx);
+        const aim = angTo(b.x,b.y,ne.px,ne.py);
+        b.vx = Math.cos(angLerp(cur,aim,Math.min(1,3.2*dt)))*b.spd;
+        b.vy = Math.sin(angLerp(cur,aim,Math.min(1,3.2*dt)))*b.spd;
+      }
     }
     b.trail.push({x:b.x,y:b.y});
     if(b.trail.length>6) b.trail.shift();
@@ -1874,12 +1891,18 @@ function updateBullets(dt){
         if(e.spawnT>0) continue;
         if(dist(b.x,b.y,e.px,e.py) < e.r+b.r){
           hitEnemy(e,b.dmg); addFloat(e.px,e.py-20,b.dmg,'#fff',11);
+          if(b.splash>0){ explode(b.x,b.y,'#ff9a3c',.9); Snd.boom();
+            for(const oe of enemies) if(oe!==e && !oe.dead && dist(b.x,b.y,oe.px,oe.py)<64+b.splash*18) hitEnemy(oe, Math.ceil(b.dmg*.55));
+          }
           if(b.pierce>0){ b.pierce--; } else { b.dead=true; }
           break;
         }
       }
       if(boss && !boss.dead && !b.dead && dist(b.x,b.y,boss.px,boss.py)<boss.r+b.r){
         hitBoss(b.dmg); addFloat(boss.px,boss.py-30,b.dmg,'#ffb300',12);
+        if(b.splash>0){ explode(b.x,b.y,'#ff9a3c',.9); Snd.boom();
+          for(const oe of enemies) if(!oe.dead && dist(b.x,b.y,oe.px,oe.py)<64+b.splash*18) hitEnemy(oe, Math.ceil(b.dmg*.55));
+        }
         if(b.pierce>0){ b.pierce--; } else b.dead=true;
       }
     }
