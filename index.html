@@ -605,6 +605,11 @@ const STAGES = [
 const STAGE_KEY = 'neonTankStage';
 let stageMax = 1;      // 已解锁的最高关卡（1-based，第 1 关默认解锁）
 let stageK   = 0;      // 当前战役关卡：0 = 自由无尽模式
+// 每关波次总数（含最终 BOSS 关）：前期少、后期多，3~6 波不等，不要太简单也别太难
+const WAVES_PER_STAGE = [3,4,4,4,5,5,5,6,6];
+const BOSS_WAVE = [0];
+for(let i=0;i<WAVES_PER_STAGE.length;i++) BOSS_WAVE.push(BOSS_WAVE[i]+WAVES_PER_STAGE[i]);
+let campaignBossWave = 0;   // 战役模式本关 BOSS 出现波（0=无尽模式仍按每 5 波）
 function loadStage(){ try{ const r = localStorage.getItem(STAGE_KEY); stageMax = Math.min(STAGES.length, Math.max(1, +r||1)); }catch(e){} }
 function saveStage(){ try{ localStorage.setItem(STAGE_KEY, String(stageMax)); }catch(e){} }
 // ---------- 坦克战绩存档（等级/经验/已选天赋跨关卡保留） ----------
@@ -952,8 +957,8 @@ function makeEnemy(type,c,r){
 }
 const BOSS_NAMES = ['铁幕暴君 IRON TYRANT','湮灭者 OBLITERATOR','虚空吞噬者 VOID DEVOURER','终焉机皇 OMEGA REX'];
 function makeBoss(idx){
-  // 代际提升：血量、弹速、伤害、技能强度、冷却更短
-  const hp = 620 + (idx-1)*320;
+  // 代际提升：血量、弹速、伤害、技能强度、冷却更短（血量加厚，对应 approx 5-6 格血条）
+  const hp = 950 + (idx-1)*520;
   return {
     px:cellCX(7), py:cellCY(2), r:40, size:76,
     hp, maxHp:hp, speed:60 + idx*4,
@@ -1040,16 +1045,18 @@ function resetGame(){
   syncHud();
 }
 function startGame(startWv){
+  campaignBossWave = 0;   // 非战役（无尽）模式：BOSS 仍按固定每 5 波出现
   resetGame();
   state='playing';
   showOverlay(null);
   $('hud').classList.remove('hidden');
   startWave(startWv||1);
 }
-// 部署某一战役关卡：起始波 = 5*(k-1)+1，击败本关 BOSS（波 5k, idx=k）即通关
+// 部署某一战役关卡：起始波与 BOSS 出现波由每关波次计划决定，本关 BOSS 击败即通关
 function startStage(k){
   stageK = clamp(k, 1, STAGES.length);
-  startGame(5*(stageK-1)+1);
+  campaignBossWave = BOSS_WAVE[stageK];
+  startGame(BOSS_WAVE[stageK-1]+1);
   $('bossbar').classList.add('hidden');
 }
 // 战役通关：解锁下一关并进入胜利结算
@@ -1092,11 +1099,11 @@ function startWave(n){
   peak.maxWave = Math.max(peak.maxWave, n);   // 中途也记录波数（成就实时判定）
   bullets = bullets.filter(b=>!b.hostile);
   lasers = [];
-  if(n % 5 === 0){
+  if(stageK>0 ? n===campaignBossWave : (n % 5 === 0)){
     mapIdx = 2; loadMap(mapIdx);
     spawnQueue = ['hunter','hunter','scout'];
     aliveCap = 3;
-    boss = makeBoss(n/5);
+    boss = makeBoss(stageK>0 ? stageK : n/5);
     boss.cineDropY = -500;                     // 硬汉坠入起点（画布上方外）
     bossCine = { t:0, dur:3.7, name:boss.name, revealT:1.9, landed:false, stage:0 };
     Snd.warn(); shake = 5;
@@ -1416,7 +1423,6 @@ const UPGRADES = [
   { id:'burst', tag:'BRST',name:'复仇连发', desc:'每发并行弹道 +1（可三连/多连发）', color:'#ffb300', apply:p=>p.lanes=Math.min(p.lanes+1,7), max:p=>p.lanes>=7 },
   { id:'nova',  tag:'NVA', name:'终焉弹幕', desc:'追加一条扇面散射弹道', color:'#ff2e88', apply:p=>p.lanes=Math.min(p.lanes+2,8), max:p=>p.lanes>=8 },
   { id:'auto',  tag:'AUTO',name:'自律炮组', desc:'自动持续开火，无需按住', color:'#ffb300', apply:p=>p.auto=Math.min(p.auto+1,1), max:p=>p.auto>=1 },
-  { id:'homing',tag:'HOM', name:'追踪导弹', desc:'子弹自动追踪最近敌人', color:'#ff5e3a', apply:p=>p.homing=Math.min(p.homing+1,3), max:p=>p.homing>=3 },
   { id:'splash',tag:'SPL', name:'爆破弹头', desc:'命中产生范围爆炸溅射敌军', color:'#ffb300', apply:p=>p.splash=Math.min(p.splash+1,3), max:p=>p.splash>=3 },
   { id:'over',  tag:'OVR', name:'高能炮芯', desc:'炮弹伤害 +40%', color:'#ff2e88', apply:p=>p.dmg*=1.4 },
   { id:'rof2',  tag:'RF2', name:'极速连发', desc:'射击频率 +25%（可叠加）', color:'#00f0ff', apply:p=>p.fireRate*=1.25 },
