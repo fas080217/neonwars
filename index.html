@@ -227,7 +227,7 @@ footer.help b{color:#7fa3b5}
 @keyframes rotBloom{0%,100%{box-shadow:0 0 6px rgba(37,215,255,.4)}50%{box-shadow:0 0 20px rgba(37,215,255,.9)}}
 #rotateOverlay .rot-t1{font-size:22px;font-weight:800;letter-spacing:.18em;text-shadow:0 0 12px rgba(37,215,255,.7)}
 #rotateOverlay .rot-t2{font-size:12px;color:#7fa3b5;letter-spacing:.3em}
-@media (orientation:portrait) and (hover:none){#rotateOverlay{display:flex}}
+#rotateOverlay.show{display:flex}
 </style>
 </head>
 <body>
@@ -2291,6 +2291,19 @@ document.addEventListener('visibilitychange', ()=>{
 loadMap(0);
 resetGame();
 state='menu';
+// 手机横屏适配：触屏设备竖屏时提示旋转，旋转/缩放实时响应
+var rotateEl=document.getElementById('rotateOverlay');
+function isTouch(){ return 'ontouchstart' in window || !!navigator.maxTouchPoints; }
+function checkRotate(){
+  if(!rotateEl) return;
+  var portrait = window.innerHeight > window.innerWidth;
+  rotateEl.classList.toggle('show', !!isTouch() && portrait);
+}
+if(isTouch()){
+  checkRotate();
+  window.addEventListener('resize', checkRotate);
+  window.addEventListener('orientationchange', function(){ setTimeout(checkRotate, 120); });
+}
 </script>
 <div id="rotateOverlay"><div class="rot-ico"><div class="rot-phone"></div></div><div class="rot-t1">请旋转设备</div><div class="rot-t2">竖屏体验欠佳 · 转为横屏自动进入</div></div>
 </body>
