@@ -1564,13 +1564,7 @@ function killEnemy(e){
   else explode(e.px,e.py,e.color,1);
   Snd.boom(); shake = Math.max(shake, 4);
   score += e.score; addFloat(e.px,e.py-14,'+'+e.score, e.color);
-  addExp(e.exp*2);   // 击杀获得经验翻倍，升级更快
-  // 掉落能量水晶：原地轻缓滑落，便于磁吸拾取（不再满图飞）
-  const n = randi(2,3);
-  for(let i=0;i<n;i++){
-    const a=rand(0,TAU);
-    crystals.push({ x:e.px+Math.cos(a)*rand(18,36), y:e.py+Math.sin(a)*rand(18,36), vx:rand(-12,12), vy:rand(-6,14), exp:3, t:rand(0,TAU) });
-  }
+  addExp(e.exp*2);   // 击杀直接获得经验（不飘经验水晶，自动吸收）
   // 概率掉道具
   if(Math.random()<.09){
     const type = pick(['heal','shield','triple','nuke','energy']);
@@ -1839,8 +1833,7 @@ function finaleBoss(b){
     addPart({ kind:'shock', x, y, life:.7, max:.7, color:'#ffb300', r0:20, r1:260 });
     timeScale = Math.max(timeScale, .4);
   }, 320);
-  // 能量水晶暴雨（轻缓散布，便于磁吸拾取）
-  for(let i=0;i<30;i++) crystals.push({ x:x+rand(-30,30), y:y+rand(-30,30), vx:rand(-24,24), vy:rand(-24,30), exp:3, t:rand(0,TAU) });
+  // 能量水晶暴雨取消：经验直接自动拾取，不再在场上飘
   drops.push({ x:x+rand(-20,20), y:y+rand(-20,20), type:pick(['heal','nuke','shield']), t:0 });
 }
 
