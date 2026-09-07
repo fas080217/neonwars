@@ -53,6 +53,11 @@ body{
   border:1px solid rgba(0,240,255,.25);box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 34px rgba(0,240,255,.12),inset 0 0 60px rgba(0,0,0,.5);
   background:#05070f;overflow:hidden}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+/* 常驻暂停按钮：游戏内左上角，始终可见可点 */
+.pa-btn{position:absolute;left:6px;top:6px;z-index:70;width:38px;height:38px;border-radius:8px;
+  border:1px solid var(--line);background:rgba(0,240,255,.08);color:var(--cyan);
+  font-family:var(--font-d);font-size:12px;letter-spacing:.1em;cursor:pointer;transition:.2s}
+.pa-btn:hover{background:rgba(0,240,255,.2);box-shadow:0 0 14px rgba(0,240,255,.4)}
 
 /* 扫描线 + 暗角 */
 .scanlines{position:absolute;inset:0;pointer-events:none;z-index:9;opacity:.5;
@@ -256,6 +261,8 @@ footer.help b{color:#7fa3b5}
 
   <div id="stage">
     <canvas id="cv" width="720" height="720"></canvas>
+    <!-- 常驻暂停按钮：游戏内始终可见 -->
+    <button id="paBtn" class="pa-btn" title="暂停 (P)">❚❚</button>
 
     <!-- HUD -->
     <div id="hud" class="hidden">
@@ -2525,6 +2532,7 @@ $('resetBuildBtn').onclick = ()=>{
 };
 $('muteBtn').onclick  = toggleMute;
 $('pauseBtn').onclick = togglePause;
+$('paBtn').onclick    = togglePause;
 $('empBtn').onclick   = tryEMP;
 $('dashBtn').onclick  = tryDash;
 $('orbitBtn').onclick = tryOrbit;
