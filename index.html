@@ -87,6 +87,14 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:cro
 #empBtn span{position:absolute;inset:0;background:rgba(255,179,0,.28);transform-origin:left;pointer-events:none}
 #empBtn.ready{animation:empPulse 1s infinite;box-shadow:0 0 16px rgba(255,179,0,.55)}
 @keyframes empPulse{50%{box-shadow:0 0 26px rgba(255,179,0,.9)}}
+#dashBtn{position:relative;border:1px solid var(--cyan);background:rgba(0,240,255,.07);color:var(--cyan);
+  font-family:var(--font-d);font-weight:700;font-size:10px;letter-spacing:.22em;padding:5px 11px 6px;cursor:pointer;overflow:hidden;transition:.2s}
+#dashBtn span{position:absolute;inset:0;background:rgba(0,240,255,.25);transform-origin:left;pointer-events:none}
+#orbitBtn{position:relative;border:1px solid var(--purple);background:rgba(180,77,255,.08);color:var(--purple);
+  font-family:var(--font-d);font-weight:700;font-size:10px;letter-spacing:.22em;padding:5px 11px 6px;cursor:pointer;overflow:hidden;transition:.2s}
+#orbitBtn span{position:absolute;inset:0;background:rgba(180,77,255,.25);transform-origin:left;pointer-events:none}
+#orbitBtn.ready{animation:empPulse2 1s infinite;box-shadow:0 0 14px rgba(180,77,255,.55)}
+@keyframes empPulse2{50%{box-shadow:0 0 24px rgba(180,77,255,.9)}}
 #buffs{display:flex;gap:5px}
 .buff{font-size:9px;font-weight:700;letter-spacing:.1em;color:#05070f;background:var(--amber);padding:2px 6px;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%)}
 .buff.shieldb{background:var(--cyan)}
@@ -219,14 +227,13 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:cro
 footer.help{font-size:11px;font-weight:600;letter-spacing:.14em;color:#4d6b7d;text-align:center;padding:0 8px}
 footer.help b{color:#7fa3b5}
 @media (max-height:640px){footer.help{display:none}#app{gap:4px}}
-#rotateOverlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:radial-gradient(circle at 50% 40%,#051b26 0%,#02090f 70%);color:#25d7ff;font-family:'Orbitron','Segoe UI',sans-serif;text-align:center}
-#rotateOverlay .rot-ico{width:80px;height:80px;border:3px solid #19b6ec;border-right-color:transparent;border-radius:50%;animation:rotSpin 1.2s linear infinite;box-shadow:0 0 24px rgba(25,182,236,.6)}
-#rotateOverlay .rot-phone{position:fixed;width:26px;height:46px;border:2px solid #25d7ff;border-radius:6px;animation:rotTilt 1.6s ease-in-out infinite,rotBloom 2s ease-in-out infinite}
-@keyframes rotSpin{to{transform:rotate(360deg)}}
+#rotateOverlay{position:fixed;left:0;right:0;top:0;z-index:99998;display:none;align-items:center;justify-content:center;flex-direction:row;gap:10px;padding:7px 14px;background:linear-gradient(90deg,#05131c,#0a2a3a,#05131c);color:#25d7ff;font-family:'Orbitron','Segoe UI',sans-serif;text-align:center;border-bottom:1px solid rgba(25,182,236,.4);box-shadow:0 0 18px rgba(25,182,236,.25);pointer-events:none}
+#rotateOverlay .rot-ico{width:22px;height:22px;flex:none}
+#rotateOverlay .rot-phone{display:block;width:16px;height:26px;border:2px solid #25d7ff;border-radius:4px;animation:rotTilt 1.6s ease-in-out infinite}
+#rotateOverlay .rot-t1,#rotateOverlay .rot-t2{font-size:12px;letter-spacing:.2em}
+#rotateOverlay .rot-t1{color:#aef7ff;font-weight:800}
+#rotateOverlay .rot-t2{color:#7fa3b5}
 @keyframes rotTilt{0%,20%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
-@keyframes rotBloom{0%,100%{box-shadow:0 0 6px rgba(37,215,255,.4)}50%{box-shadow:0 0 20px rgba(37,215,255,.9)}}
-#rotateOverlay .rot-t1{font-size:22px;font-weight:800;letter-spacing:.18em;text-shadow:0 0 12px rgba(37,215,255,.7)}
-#rotateOverlay .rot-t2{font-size:12px;color:#7fa3b5;letter-spacing:.3em}
 #rotateOverlay.show{display:flex}
 </style>
 </head>
@@ -256,6 +263,8 @@ footer.help b{color:#7fa3b5}
         </div>
         <div id="hudRight">
           <button id="empBtn">EMP <b id="empPct">0%</b><span id="empFill"></span></button>
+          <button id="dashBtn">闪现 <b id="dashPct">0%</b><span id="dashFill"></span></button>
+          <button id="orbitBtn">轰炸 <b id="orbitPct">0%</b><span id="orbitFill"></span></button>
           <div class="bar-wrap"><label>LV <b id="hudLv">1</b></label><div class="bar xp"><i id="xpFill"></i></div></div>
           <div id="buffs"></div>
         </div>
@@ -746,6 +755,8 @@ addEventListener('keydown', e=>{
   if(e.code==='KeyM') toggleMute();
   if(e.code==='KeyP'||e.code==='Escape') togglePause();
   if(e.code==='KeyQ') tryEMP();
+  if(e.code==='KeyE') tryDash();
+  if(e.code==='KeyF') tryOrbit();
   Snd.init();
 });
 addEventListener('keyup', e=>keys[e.code]=false);
@@ -1057,27 +1068,36 @@ function tankHitTile(px,py,size){
   return false;
 }
 function moveTank(t,dx,dy,dt){
-  // 分轴移动 + 贴墙，垂直轴吸附格中心线（经典手感）
+  // 物理行走：分轴移动 + 每轴扫描最近实心格严格钳制，杜绝穿墙与瞬移
   const s = t.speed * dt;
+  const half = t.size/2 - 2;
   if(dx){
     let nx = t.px + dx*s;
-    if(tankHitTile(nx,t.py,t.size)){
-      nx = dx>0 ? Math.floor((t.px+t.size/2)/TILE)*TILE + TILE - t.size/2 - 2
-                : Math.ceil((t.px-t.size/2)/TILE)*TILE + t.size/2 + 2;
+    const r0=Math.floor((t.py-half)/TILE), r1=Math.floor((t.py+half)/TILE);
+    if(dx>0){
+      const c=Math.floor((nx+half)/TILE); let hit=false;
+      for(let r=r0;r<=r1&&!hit;r++) if(SOLID_TANK.has(tileGet(c,r))) hit=true;
+      if(hit) nx = c*TILE - half - 1;                       // 右缘对齐实心格左边界
+    }else{
+      const c=Math.floor((nx-half)/TILE); let hit=false;
+      for(let r=r0;r<=r1&&!hit;r++) if(SOLID_TANK.has(tileGet(c,r))) hit=true;
+      if(hit) nx = (c+1)*TILE + half + 1;                   // 左缘对齐实心格右边界
     }
     t.px = nx;
-    const cy = Math.round((t.py-CELL)/TILE)*TILE + CELL;
-    if(Math.abs(cy-t.py) < 15) t.py = lerp(t.py, cy, Math.min(1, 12*dt));
   }
   if(dy){
     let ny = t.py + dy*s;
-    if(tankHitTile(t.px,ny,t.size)){
-      ny = dy>0 ? Math.floor((t.py+t.size/2)/TILE)*TILE + TILE - t.size/2 - 2
-                : Math.ceil((t.py-t.size/2)/TILE)*TILE + t.size/2 + 2;
+    const c0=Math.floor((t.px-half)/TILE), c1=Math.floor((t.px+half)/TILE);
+    if(dy>0){
+      const r=Math.floor((ny+half)/TILE); let hit=false;
+      for(let c=c0;c<=c1&&!hit;c++) if(SOLID_TANK.has(tileGet(c,r))) hit=true;
+      if(hit) ny = r*TILE - half - 1;                       // 下缘对齐实心格上边界
+    }else{
+      const r=Math.floor((ny-half)/TILE); let hit=false;
+      for(let c=c0;c<=c1&&!hit;c++) if(SOLID_TANK.has(tileGet(c,r))) hit=true;
+      if(hit) ny = (r+1)*TILE + half + 1;                   // 上缘对齐实心格下边界
     }
     t.py = ny;
-    const cx = Math.round((t.px-CELL)/TILE)*TILE + CELL;
-    if(Math.abs(cx-t.px) < 15) t.px = lerp(t.px, cx, Math.min(1, 12*dt));
   }
   // 限制在战场区内，防止开出地图边界消失
   const m = t.size/2;
@@ -1091,6 +1111,7 @@ function moveTank(t,dx,dy,dt){
 function updatePlayer(dt){
   const p = player;
   p.inv = Math.max(0, p.inv-dt);
+  dashCd = Math.max(0, dashCd-dt); orbitCd = Math.max(0, orbitCd-dt); updateOrbit(dt);
   p.cool -= dt; p.muzzle = Math.max(0,p.muzzle-dt);
   p.hitFlash = Math.max(0,p.hitFlash-dt*6);
   p.tripleT = Math.max(0, p.tripleT-dt);
@@ -1211,6 +1232,61 @@ function tryEMP(){
   for(const b of bullets) if(b.hostile) b.dead=true;
   for(const e of enemies){ e.stun = 1.6; hitEnemy(e, 60); }
   if(boss){ boss.stun = 1.2; hitBoss(80); }
+}
+// —— 主动技能：相位闪现 (E) ——
+let dashMax = 8, dashCd = 0; // 闪现冷却秒数
+function tryDash(){
+  if(state!=='playing' || dashCd > 0) return;
+  const p = player;
+  dashCd = dashMax;
+  // 朝移动方向/炮塔朝向闪现
+  let dx=0, dy=0; const s = 110; // 瞬移距离
+  if(keys.KeyW||keys.ArrowUp) dy=-1; else if(keys.KeyS||keys.ArrowDown) dy=1;
+  if(keys.KeyA||keys.ArrowLeft) dx=-1; else if(keys.KeyD||keys.ArrowRight) dx=1;
+  if(touchState.vec.x||touchState.vec.y){ dx=touchState.vec.x||0; dy=touchState.vec.y||0; }
+  if(!dx&&!dy){ dx=Math.cos(p.turretAng); dy=Math.sin(p.turretAng); }
+  const L=Math.hypot(dx,dy)||1; dx/=L; dy/=L;
+  let tx=p.px+dx*s, ty=p.py+dy*s;
+  // 目标若会穿墙则退回，确保不瞬移进箱子里
+  const m=p.size/2, half=p.size/2-2;
+  tx=clamp(tx,m,W-m); ty=clamp(ty,m,H-m);
+  const r0=Math.floor((ty-half)/TILE),r1=Math.floor((ty+half)/TILE);
+  const c0=Math.floor((tx-half)/TILE),c1=Math.floor((tx+half)/TILE);
+  let blocked=false;
+  for(let r=r0;r<=r1&&!blocked;r++)for(let c=c0;c<=c1&&!blocked;c++) if(SOLID_TANK.has(tileGet(c,r))) blocked=true;
+  if(blocked){ tx=p.px; ty=p.py; } // 未成功，消耗冷却但原地，安全起见
+  else p.px=tx, p.py=ty;
+  p.inv = Math.max(p.inv, 0.5); // 短暂无敌
+  Snd.emp(); addPart({kind:'ring',x:p.px,y:p.py,life:.5,max:.5,color:'#00f0ff',r0:10,r1:60});
+  addPart({kind:'flash',x:p.px,y:p.py,life:.08,max:.08,color:'#aef7ff',r:16});
+  for(let i=0;i<14;i++) addPart({kind:'spark',x:p.px,y:p.py,life:.3,max:.3,color:'#00f0ff',r:4});
+}
+// —— 主动技能：轨道轰炸 (F) ——
+let orbitMax = 20, orbitCd = 0, orbitT = 0, orbitPts = [];
+function tryOrbit(){
+  if(state!=='playing' || orbitCd > 0) return;
+  orbitCd = orbitMax; orbitT = 1.0; Snd.shoot();
+  // 在屏幕内敌人密集处与玩家瞄准点选定轰炸点
+  orbitPts = [];
+  const list = enemies.filter(e=>e.px>40&&e.px<W-40&&e.py>40&&e.py<H-40).slice(0,5);
+  if(list.length) list.forEach(e=>orbitPts.push({x:e.px,y:e.py}));
+  else orbitPts.push({x:player.px+Math.cos(player.turretAng)*120, y:player.py+Math.sin(player.turretAng)*120});
+}
+function updateOrbit(dt){
+  if(orbitT > 0){
+    orbitT -= dt;
+    const avg = Math.floor(60*dt);
+    for(let k=0;k<avg && orbitPts.length && orbitPts.length<40; k++){
+      const pt = orbitPts[(Math.random()*orbitPts.length)|0];
+      const ox=pt.x+(Math.random()*70-35), oy=pt.y+(Math.random()*70-35);
+      addPart({kind:'flash',x:ox,y:oy,life:.3,max:.3,color:'#b44dff',r:26});
+      shake = Math.max(shake, 3);
+      for(const e of enemies){ if(dist(e.px,e.py,ox,oy)<60) hitEnemy(e, 34); }
+      if(boss && dist(boss.px,boss.py,ox,oy)<70) hitBoss(30);
+      Snd.steel();
+    }
+    if(orbitT<=0){ orbitPts=[]; }
+  }
 }
 function doNuke(fromPlayer){
   flash = .5; flashColor='rgba(255,179,0,'; shake=12; Snd.bigboom();
@@ -1767,6 +1843,13 @@ function syncHud(){
   $('empPct').textContent = pct+'%';
   $('empFill').style.transform = `scaleX(${pct/100})`;
   $('empBtn').classList.toggle('ready', pct>=100);
+  const dp = Math.floor((1-dashCd/dashMax)*100);
+  $('dashPct').textContent = dashCd>0 ? Math.ceil(dashCd)+'s' : '就绪';
+  $('dashFill').style.transform = `scaleX(${clamp(dp/100,0,1)})`;
+  const op = Math.floor((1-orbitCd/orbitMax)*100);
+  $('orbitPct').textContent = orbitCd>0 ? Math.ceil(orbitCd)+'s' : '就绪';
+  $('orbitFill').style.transform = `scaleX(${clamp(op/100,0,1)})`;
+  $('orbitBtn').classList.toggle('ready', orbitCd<=0);
   // buff 图标
   const buffs = [];
   if(p.tripleT>0) buffs.push(`<span class="buff">三连 ${Math.ceil(p.tripleT)}s</span>`);
@@ -2269,6 +2352,8 @@ $('menuBtn').onclick  = ()=>{ state='menu'; showOverlay('menu'); $('hud').classL
 $('resumeBtn').onclick = togglePause;
 $('muteBtn').onclick  = toggleMute;
 $('empBtn').onclick   = tryEMP;
+$('dashBtn').onclick  = tryDash;
+$('orbitBtn').onclick = tryOrbit;
 // 强制初始仅显示主菜单：统一隐藏其它所有界面层，杜绝初始遮挡
 document.querySelectorAll('.overlay').forEach(o=>{ if(o.id!=='menu') o.classList.add('hidden'); });
 loadAch();                                       // 载入成就存档
@@ -2293,13 +2378,13 @@ resetGame();
 state='menu';
 // 手机横屏适配：触屏设备竖屏时提示旋转，旋转/缩放实时响应
 var rotateEl=document.getElementById('rotateOverlay');
-function isTouch(){ return 'ontouchstart' in window || !!navigator.maxTouchPoints; }
+function isTouchDev(){ return 'ontouchstart' in window || !!navigator.maxTouchPoints; }
 function checkRotate(){
   if(!rotateEl) return;
   var portrait = window.innerHeight > window.innerWidth;
-  rotateEl.classList.toggle('show', !!isTouch() && portrait);
+  rotateEl.classList.toggle('show', !!isTouchDev() && portrait);
 }
-if(isTouch()){
+if(isTouchDev()){
   checkRotate();
   window.addEventListener('resize', checkRotate);
   window.addEventListener('orientationchange', function(){ setTimeout(checkRotate, 120); });
