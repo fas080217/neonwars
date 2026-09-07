@@ -249,6 +249,7 @@ footer.help b{color:#7fa3b5}
     <div class="brand">NEON<em>TANK</em><small>钢铁觉醒</small></div>
     <div class="top-right">
       <div class="hiscore">HI <b id="hiscore">0</b></div>
+      <button id="pauseBtn" class="icon-btn" title="暂停 (P)">❚❚</button>
       <button id="muteBtn" class="icon-btn" title="静音 (M)">♪</button>
     </div>
   </header>
@@ -313,8 +314,14 @@ footer.help b{color:#7fa3b5}
     <div id="pause" class="overlay hidden">
       <div class="panel">
         <div class="title" style="font-size:30px">暂停</div>
-        <p style="margin:10px 0 18px;font-size:12px;color:#7fa3b5;letter-spacing:.2em">系统待机中</p>
+        <p style="margin:8px 0 4px;font-size:12px;color:#7fa3b5;letter-spacing:.2em">系统待机中</p>
+        <p style="margin:0 0 18px;font-size:13px;color:#fff">当前等级 <b style="color:var(--cyan)">Lv.<span id="pauseLv">1</span></b> ｜ 已选天赋 <b style="color:var(--gold)"><span id="pauseTaken">0</span></b> 项</p>
         <button id="resumeBtn" class="btn">继续作战</button>
+        <div style="display:flex;gap:12px;margin-top:12px">
+          <button id="pauseRestart" class="btn ghost">重新本关</button>
+          <button id="pauseMenu" class="btn ghost">返回基地</button>
+        </div>
+        <button id="resetBuildBtn" class="btn ghost" style="margin-top:10px;color:#ff6b81;border-color:rgba(255,80,110,.4)">&#9850; 重置等级 · 从头开始</button>
       </div>
     </div>
 
@@ -2012,7 +2019,12 @@ function toggleMute(){
   $('muteBtn').textContent = Snd.muted?'✕':'♪';
 }
 function togglePause(){
-  if(state==='playing'){ state='paused'; showOverlay('pause'); }
+  if(state==='playing'){
+    state='paused';
+    $('pauseLv').textContent = build.level;
+    $('pauseTaken').textContent = Object.keys(build.taken||{}).filter(k=>build.taken[k]>0).length;
+    showOverlay('pause');
+  }
   else if(state==='paused'){ state='playing'; showOverlay(null); }
 }
 function gameOver(reason){
@@ -2501,7 +2513,18 @@ $('startBtn').onclick = ()=>{ Snd.init(); stageK=0; startGame(); };
 $('retryBtn').onclick = ()=>{ Snd.init(); if(stageK>0) startStage(stageK); else startGame(); };
 $('menuBtn').onclick  = ()=>{ state='menu'; showOverlay('menu'); $('hud').classList.add('hidden'); };
 $('resumeBtn').onclick = togglePause;
+$('pauseMenu').onclick  = ()=>{ state='menu'; showOverlay('menu'); $('hud').classList.add('hidden'); };
+$('pauseRestart').onclick = ()=>{ Snd.init(); $('hud').classList.remove('hidden'); if(stageK>0) startStage(stageK); else startGame(); };
+$('resetBuildBtn').onclick = ()=>{
+  // 重置等级与天赋，从头开始（确认后清空存档并回主菜单）
+  if(!confirm('确定重置等级与已选天赋，从头开始吗？')) return;
+  build = { level:1, xp:0, xpNext:20, taken:{} };
+  saveBuild();
+  if(player) Object.assign(player, { level:1, xp:0, xpNext:20, taken:{} });
+  state='menu'; showOverlay('menu'); $('hud').classList.add('hidden');
+};
 $('muteBtn').onclick  = toggleMute;
+$('pauseBtn').onclick = togglePause;
 $('empBtn').onclick   = tryEMP;
 $('dashBtn').onclick  = tryDash;
 $('orbitBtn').onclick = tryOrbit;
