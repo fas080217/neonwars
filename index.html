@@ -1231,7 +1231,7 @@ function updatePlayer(dt){
     for(let i=0;i<lanes;i++){
       const off = (i-(lanes-1)/2)*spread;
       fire(p.px+Math.cos(p.turretAng)*22, p.py+Math.sin(p.turretAng)*22, p.turretAng+off,
-        { speed:Math.round(520*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:'#00f0ff', reflect:0, homing:p.homing, splash:p.splash });
+        { speed:Math.round((p.homing>0?640:520)*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:p.homing>0?'#ff5e3a':'#00f0ff', reflect:0, homing:p.homing, splash:p.splash, life:p.homing>0?3.2:2.2 });
     }
     p.muzzle = .07; Snd.shoot();
     addPart({ kind:'flash', x:p.px+Math.cos(p.turretAng)*26, y:p.py+Math.sin(p.turretAng)*26, life:.06, max:.06, color:'#aef7ff', r:10 });
@@ -1844,8 +1844,9 @@ function updateBullets(dt){
       if(ne){
         const cur = Math.atan2(b.vy,b.vx);
         const aim = angTo(b.x,b.y,ne.px,ne.py);
-        b.vx = Math.cos(angLerp(cur,aim,Math.min(1,3.2*dt)))*b.spd;
-        b.vy = Math.sin(angLerp(cur,aim,Math.min(1,3.2*dt)))*b.spd;
+        // 追踪更灵敏，转弯更跟手
+        b.vx = Math.cos(angLerp(cur,aim,Math.min(1,7*dt)))*b.spd;
+        b.vy = Math.sin(angLerp(cur,aim,Math.min(1,7*dt)))*b.spd;
       }
     }
     b.trail.push({x:b.x,y:b.y});
@@ -1891,8 +1892,8 @@ function updateBullets(dt){
         if(e.spawnT>0) continue;
         if(dist(b.x,b.y,e.px,e.py) < e.r+b.r){
           hitEnemy(e,b.dmg); addFloat(e.px,e.py-20,b.dmg,'#fff',11);
-          if(b.splash>0){ explode(b.x,b.y,'#ff9a3c',.9); Snd.boom();
-            for(const oe of enemies) if(oe!==e && !oe.dead && dist(b.x,b.y,oe.px,oe.py)<64+b.splash*18) hitEnemy(oe, Math.ceil(b.dmg*.55));
+          if(b.splash>0){ explode(b.x,b.y,'#ff9a3c',1.4); addPart({kind:'shock',x:b.x,y:b.y,life:.5,max:.5,color:'#ffb300',r0:14,r1:120+b.splash*40}); Snd.boom();
+            for(const oe of enemies) if(oe!==e && !oe.dead && dist(b.x,b.y,oe.px,oe.py)<90+b.splash*26) hitEnemy(oe, Math.ceil(b.dmg*.7));
           }
           if(b.pierce>0){ b.pierce--; } else { b.dead=true; }
           break;
@@ -1900,8 +1901,8 @@ function updateBullets(dt){
       }
       if(boss && !boss.dead && !b.dead && dist(b.x,b.y,boss.px,boss.py)<boss.r+b.r){
         hitBoss(b.dmg); addFloat(boss.px,boss.py-30,b.dmg,'#ffb300',12);
-        if(b.splash>0){ explode(b.x,b.y,'#ff9a3c',.9); Snd.boom();
-          for(const oe of enemies) if(!oe.dead && dist(b.x,b.y,oe.px,oe.py)<64+b.splash*18) hitEnemy(oe, Math.ceil(b.dmg*.55));
+        if(b.splash>0){ explode(b.x,b.y,'#ff9a3c',1.4); addPart({kind:'shock',x:b.x,y:b.y,life:.5,max:.5,color:'#ffb300',r0:14,r1:120+b.splash*40}); Snd.boom();
+          for(const oe of enemies) if(!oe.dead && dist(b.x,b.y,oe.px,oe.py)<90+b.splash*26) hitEnemy(oe, Math.ceil(b.dmg*.7));
         }
         if(b.pierce>0){ b.pierce--; } else b.dead=true;
       }
