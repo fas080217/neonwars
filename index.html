@@ -175,6 +175,12 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:cro
 #fireHint{position:absolute;right:18px;bottom:18px;width:74px;height:74px;border-radius:50%;
   border:2px solid rgba(255,46,136,.4);background:rgba(255,46,136,.08);display:grid;place-items:center;
   font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--magenta)}
+#touchSkills{position:absolute;right:104px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:6}
+#touchSkills button{width:52px;height:52px;border-radius:50%;border:2px solid rgba(0,240,255,.35);
+  background:rgba(0,240,255,.08);color:#7fefff;font-family:var(--font-d);font-size:9px;font-weight:700;
+  letter-spacing:.1em;cursor:pointer;transition:.2s}
+#touchSkills button.busy{opacity:.45}
+#touchSkills button.ready{animation:empPulse2 1s infinite;box-shadow:0 0 12px rgba(0,240,255,.5);color:#aef7ff}
 
 /* 勋章展馆 */
 .hall{background:rgba(3,10,20,.9)}
@@ -333,6 +339,11 @@ footer.help b{color:#7fa3b5}
     <div id="touch" class="hidden">
       <div id="joyBase"><div id="joyKnob"></div></div>
       <div id="fireHint">FIRE</div>
+      <div id="touchSkills">
+        <button id="tskEmp">EMP</button>
+        <button id="tskDash">闪现</button>
+        <button id="tskOrb">轰炸</button>
+      </div>
     </div>
 
     <div class="scanlines"></div>
@@ -1111,7 +1122,7 @@ function moveTank(t,dx,dy,dt){
 function updatePlayer(dt){
   const p = player;
   p.inv = Math.max(0, p.inv-dt);
-  dashCd = Math.max(0, dashCd-dt); orbitCd = Math.max(0, orbitCd-dt); updateOrbit(dt);
+  dashCd = Math.max(0, dashCd-dt); orbitCd = Math.max(0, orbitCd-dt); updateBombs(dt);
   p.cool -= dt; p.muzzle = Math.max(0,p.muzzle-dt);
   p.hitFlash = Math.max(0,p.hitFlash-dt*6);
   p.tripleT = Math.max(0, p.tripleT-dt);
@@ -1237,7 +1248,7 @@ function tryEMP(){
 let dashMax = 8, dashCd = 0; // 闪现冷却秒数
 function tryDash(){
   if(state!=='playing' || dashCd > 0) return;
-  const p = player;
+  const p = player; const oriX=p.px, oriY=p.py;
   dashCd = dashMax;
   // 朝移动方向/炮塔朝向闪现
   let dx=0, dy=0; const s = 110; // 瞬移距离
@@ -1257,35 +1268,44 @@ function tryDash(){
   if(blocked){ tx=p.px; ty=p.py; } // 未成功，消耗冷却但原地，安全起见
   else p.px=tx, p.py=ty;
   p.inv = Math.max(p.inv, 0.5); // 短暂无敌
-  Snd.emp(); addPart({kind:'ring',x:p.px,y:p.py,life:.5,max:.5,color:'#00f0ff',r0:10,r1:60});
-  addPart({kind:'flash',x:p.px,y:p.py,life:.08,max:.08,color:'#aef7ff',r:16});
-  for(let i=0;i<14;i++) addPart({kind:'spark',x:p.px,y:p.py,life:.3,max:.3,color:'#00f0ff',r:4});
+  // 方向指示：沿闪现路径撒残影 + 起终点双环
+  for(let i=0;i<9;i++){ const f=(i+1)/9; addPart({kind:'spark',x:oriX+(p.px-oriX)*f, y:oriY+(p.py-oriY)*f, life:.25,max:.25,color:'#00f0ff',r:3}); }
+  addPart({kind:'ring',x:oriX,y:oriY,life:.3,max:.3,color:'#00f0ff',r0:10,r1:46});
+  addPart({kind:'ring',x:p.px,y:p.py,life:.5,max:.5,color:'#aef7ff',r0:12,r1:70});
+  addPart({kind:'flash',x:p.px,y:p.py,life:.12,max:.12,color:'#ffffff',r:18});
+  Snd.emp();
 }
 // —— 主动技能：轨道轰炸 (F) ——
-let orbitMax = 20, orbitCd = 0, orbitT = 0, orbitPts = [];
+let orbitMax = 20, orbitCd = 0, orbitT = 0, orbitPts = [], bombs = [];
 function tryOrbit(){
   if(state!=='playing' || orbitCd > 0) return;
   orbitCd = orbitMax; orbitT = 1.0; Snd.shoot();
-  // 在屏幕内敌人密集处与玩家瞄准点选定轰炸点
-  orbitPts = [];
-  const list = enemies.filter(e=>e.px>40&&e.px<W-40&&e.py>40&&e.py<H-40).slice(0,5);
-  if(list.length) list.forEach(e=>orbitPts.push({x:e.px,y:e.py}));
-  else orbitPts.push({x:player.px+Math.cos(player.turretAng)*120, y:player.py+Math.sin(player.turretAng)*120});
+  // 锁定敌人密集处与玩家准星方向，投放多颗空投
+  const list = enemies.filter(e=>e.px>40&&e.px<W-40&&e.py>40&&e.py<H-40).slice(0,6);
+  const tgt = list.length
+    ? list.map(e=>({x:e.px, y:e.py}))
+    : [{x:player.px+Math.cos(player.turretAng)*140, y:player.py+Math.sin(player.turretAng)*140}];
+  tgt.forEach(pt=>spawnBomb(pt.x+(Math.random()*26-13), pt.y+(Math.random()*26-13)));
 }
-function updateOrbit(dt){
-  if(orbitT > 0){
-    orbitT -= dt;
-    const avg = Math.floor(60*dt);
-    for(let k=0;k<avg && orbitPts.length && orbitPts.length<40; k++){
-      const pt = orbitPts[(Math.random()*orbitPts.length)|0];
-      const ox=pt.x+(Math.random()*70-35), oy=pt.y+(Math.random()*70-35);
-      addPart({kind:'flash',x:ox,y:oy,life:.3,max:.3,color:'#b44dff',r:26});
-      shake = Math.max(shake, 3);
-      for(const e of enemies){ if(dist(e.px,e.py,ox,oy)<60) hitEnemy(e, 34); }
-      if(boss && dist(boss.px,boss.py,ox,oy)<70) hitBoss(30);
-      Snd.steel();
+function spawnBomb(x,y){
+  const life=.5;
+  bombs.push({x:x, y:y, t:life});
+  // 落地前的红色预警圈
+  addPart({kind:'ring',x:x,y:y,life:life,max:life,color:'#ff2e6d',r0:8,r1:34});
+  addPart({kind:'flash',x:x,y:y,life:life,max:life,color:'#ff2e6d',r:12});
+}
+function updateBombs(dt){
+  for(let i=bombs.length-1;i>=0;i--){
+    const b=bombs[i]; b.t-=dt;
+    if(b.t<=0){
+      bombs.splice(i,1);
+      explode(b.x,b.y,'#b44dff',1.5);
+      addPart({kind:'ring',x:b.x,y:b.y,life:.6,max:.6,color:'#b44dff',r0:20,r1:150});
+      addPart({kind:'ring',x:b.x,y:b.y,life:.3,max:.3,color:'#ffffff',r0:6,r1:80});
+      shake = Math.max(shake, 9); Snd.steel();
+      for(const e of enemies) if(dist(e.px,e.py,b.x,b.y)<72) hitEnemy(e,34);
+      if(boss && dist(boss.px,boss.py,b.x,b.y)<80) hitBoss(30);
     }
-    if(orbitT<=0){ orbitPts=[]; }
   }
 }
 function doNuke(fromPlayer){
@@ -1850,6 +1870,13 @@ function syncHud(){
   $('orbitPct').textContent = orbitCd>0 ? Math.ceil(orbitCd)+'s' : '就绪';
   $('orbitFill').style.transform = `scaleX(${clamp(op/100,0,1)})`;
   $('orbitBtn').classList.toggle('ready', orbitCd<=0);
+  // 触屏技能按钮状态
+  $('tskEmp').classList.toggle('busy', empCharge < empMax);
+  $('tskEmp').classList.toggle('ready', empCharge >= empMax);
+  $('tskDash').classList.toggle('busy', dashCd > 0);
+  $('tskDash').classList.toggle('ready', dashCd <= 0);
+  $('tskOrb').classList.toggle('busy', orbitCd > 0);
+  $('tskOrb').classList.toggle('ready', orbitCd <= 0);
   // buff 图标
   const buffs = [];
   if(p.tripleT>0) buffs.push(`<span class="buff">三连 ${Math.ceil(p.tripleT)}s</span>`);
@@ -2354,6 +2381,7 @@ $('muteBtn').onclick  = toggleMute;
 $('empBtn').onclick   = tryEMP;
 $('dashBtn').onclick  = tryDash;
 $('orbitBtn').onclick = tryOrbit;
+$('tskEmp').onclick = tryEMP; $('tskDash').onclick = tryDash; $('tskOrb').onclick = tryOrbit;
 // 强制初始仅显示主菜单：统一隐藏其它所有界面层，杜绝初始遮挡
 document.querySelectorAll('.overlay').forEach(o=>{ if(o.id!=='menu') o.classList.add('hidden'); });
 loadAch();                                       // 载入成就存档
