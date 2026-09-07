@@ -926,7 +926,7 @@ function makePlayer(){
     bodyAng:-Math.PI/2, turretAng:-Math.PI/2,
     speed:170, r:19, size:38,
     hp:100, maxHp:100, shield:30, maxShield:30, shRegenT:0,
-    cool:0, fireRate:2.6, dmg:10, lanes:1, pierce:0, magnet:60,
+    cool:0, fireRate:2.6, dmg:10, lanes:1, pierce:0, magnet:60, reflect:0,
     empEff:1, regen:0, thorn:0, bspeed:1, homing:0, splash:0, auto:0,
     xp:0, level:1, xpNext:20,
     inv:1.5, tripleT:0, trackOff:0, hitFlash:0, muzzle:0,
@@ -1252,7 +1252,7 @@ function updatePlayer(dt){
     for(let i=0;i<lanes;i++){
       const off = (i-(lanes-1)/2)*spread;
       fire(p.px+Math.cos(p.turretAng)*22, p.py+Math.sin(p.turretAng)*22, p.turretAng+off,
-        { speed:Math.round((p.homing>0?640:520)*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:p.homing>0?'#ff5e3a':'#00f0ff', reflect:0, homing:p.homing, splash:p.splash, life:p.homing>0?3.2:2.2 });
+        { speed:Math.round((p.homing>0?640:520)*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:p.homing>0?'#ff5e3a':'#00f0ff', reflect:p.reflect, homing:p.homing, splash:p.splash, life:p.homing>0?3.2:2.2 });
     }
     p.muzzle = .07; Snd.shoot();
     addPart({ kind:'flash', x:p.px+Math.cos(p.turretAng)*26, y:p.py+Math.sin(p.turretAng)*26, life:.06, max:.06, color:'#aef7ff', r:10 });
@@ -1425,7 +1425,7 @@ const UPGRADES = [
   { id:'atk',   tag:'ATK', name:'火力强化', desc:'炮弹伤害 +25%', color:'#ff5e3a', apply:p=>p.dmg*=1.25 },
   { id:'rof',   tag:'ROF', name:'速射系统', desc:'射击频率 +22%', color:'#00f0ff', apply:p=>p.fireRate*=1.22 },
   { id:'multi', tag:'MLT', name:'多重炮管', desc:'同时发射 +1 发弹道', color:'#ffb300', apply:p=>p.lanes=Math.min(p.lanes+1,4), max:p=>p.lanes>=4 },
-  { id:'pierce',tag:'PRC', name:'穿甲弹头', desc:'穿透 +1，可击碎钢墙', color:'#ff2e88', apply:p=>p.pierce=Math.min(p.pierce+1,3), max:p=>p.pierce>=3 },
+  { id:'pierce',tag:'PRC', name:'穿甲弹头', desc:'穿透多个敌军，不破坏墙体砖块', color:'#ff2e88', apply:p=>p.pierce=Math.min(p.pierce+1,3), max:p=>p.pierce>=3 },
   { id:'shield',tag:'SHD', name:'相位护盾', desc:'护盾上限 +40 并立即回满', color:'#00f0ff', apply:p=>{p.maxShield+=40;p.shield=p.maxShield;} },
   { id:'hp',    tag:'ARM', name:'装甲强化', desc:'最大装甲 +30 并完全修复', color:'#54ff9f', apply:p=>{p.maxHp+=30;p.hp=p.maxHp;} },
   { id:'speed', tag:'SPD', name:'量子推进器', desc:'移动速度 +12%', color:'#ffd23f', apply:p=>p.speed*=1.12 },
@@ -1440,6 +1440,7 @@ const UPGRADES = [
   { id:'splash',tag:'SPL', name:'爆破弹头', desc:'命中产生范围爆炸溅射敌军', color:'#ffb300', apply:p=>p.splash=Math.min(p.splash+1,3), max:p=>p.splash>=3 },
   { id:'over',  tag:'OVR', name:'高能炮芯', desc:'炮弹伤害 +40%', color:'#ff2e88', apply:p=>p.dmg*=1.4 },
   { id:'rof2',  tag:'RF2', name:'极速连发', desc:'射击频率 +25%（可叠加）', color:'#00f0ff', apply:p=>p.fireRate*=1.25 },
+  { id:'reflect',tag:'RFL', name:'回旋弹幕', desc:'子弹碰到墙壁会反弹（可叠加反弹次数）', color:'#00f0ff', apply:p=>p.reflect=Math.min(p.reflect+1,5), max:p=>p.reflect>=5 },
 ];
 let upPool = [];
 function openUpgrade(){
@@ -1873,14 +1874,21 @@ function updateBullets(dt){
     if(SOLID_BULLET.has(t)){
       if(t===T_BASE){ b.dead=true; if(b.hostile) damageBase(b.dmg); else damageBase(b.dmg*.5); continue; }
       if(t===T_BRICK){
-        b.dead=true;
-        if(--brickHp[r][c] <= 0){ tileSet(c,r,T_EMPTY); }
-        explode(b.x,b.y,'#c96a3a',.5); Snd.brick();
+        if(!b.hostile && b.reflect>0){ b.reflect--; // 反弹墙壁（不破坏砖块）
+          const cx=cellCX(c), cy=cellCY(r);
+          const ox=b.x-cx, oy=b.y-cy;
+          if(Math.abs(ox)>Math.abs(oy)) b.vx*=-1; else b.vy*=-1;
+          b.x = cx + Math.sign(ox)*(TILE/2+b.r+1); b.y = cy + Math.sign(oy)*(TILE/2+b.r+1);
+          Snd.steel();
+        } else {
+          b.dead=true;
+          if(--brickHp[r][c] <= 0){ tileSet(c,r,T_EMPTY); }
+          explode(b.x,b.y,'#c96a3a',.5); Snd.brick();
+        }
         continue;
       }
       if(t===T_STEEL){
-        if(b.pierce>0){ tileSet(c,r,T_EMPTY); b.pierce--; explode(b.x,b.y,'#9fb6c9',.6); Snd.steel(); }
-        else if(b.reflect>0){ b.reflect--; // 反弹
+        if(!b.hostile && b.reflect>0){ b.reflect--; // 反弹墙壁
           const cx=cellCX(c), cy=cellCY(r);
           const ox=b.x-cx, oy=b.y-cy;
           if(Math.abs(ox)>Math.abs(oy)) b.vx*=-1; else b.vy*=-1;
