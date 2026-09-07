@@ -607,6 +607,30 @@ let stageMax = 1;      // 已解锁的最高关卡（1-based，第 1 关默认�
 let stageK   = 0;      // 当前战役关卡：0 = 自由无尽模式
 function loadStage(){ try{ const r = localStorage.getItem(STAGE_KEY); stageMax = Math.min(STAGES.length, Math.max(1, +r||1)); }catch(e){} }
 function saveStage(){ try{ localStorage.setItem(STAGE_KEY, String(stageMax)); }catch(e){} }
+// ---------- 坦克战绩存档（等级/经验/已选天赋跨关卡保留） ----------
+const BUILD_KEY = 'neonTankBuild';
+const MAX_XP_NEXT = 4000;                    // 升级所需经验上限，防止后期过高
+let build = loadBuild();        // 从存档恢复已有等级/经验/天赋
+function loadBuild(){
+  try{
+    const raw = localStorage.getItem(BUILD_KEY);
+    if(raw){
+      const b = JSON.parse(raw);
+      if(b && typeof b.level==='number'){
+        return { level:Math.max(1,b.level)|0, xp:b.xp||0, xpNext:b.xpNext||28, taken:(b.taken&&b.taken.taken? b.taken.taken : b.taken)||{} };
+      }
+    }
+  }catch(e){}
+  return { level:1, xp:0, xpNext:28, taken:{} };
+}
+function saveBuild(){ try{ localStorage.setItem(BUILD_KEY, JSON.stringify(build)); }catch(e){} }
+// 在基础玩家属性上套用已存档的全部天赋
+function applyBuild(p){
+  for(const u of UPGRADES){
+    const n = build.taken[u.id]||0;
+    for(let i=0;i<n;i++) u.apply(p);
+  }
+}
 const ACHS = [
   { id:'first-kill', name:'初露锋芒', desc:'完成第 1 次击杀', tier:'bronze', icon:'🎯', test:()=>stats.kills>=1 },
   { id:'kill-10',    name:'猎手老兵', desc:'累计击杀 10 台敌军', tier:'bronze', icon:'⚔', test:()=>stats.kills>=10 },
@@ -878,7 +902,7 @@ cv.addEventListener('touchcancel', touchEnd, {passive:false});
 
 // ---------- 实体构造 ----------
 function makePlayer(){
-  return {
+  const p = { // 基础属性（不含存档天赋，见下方 applyBuild）
     px:cellCX(7), py:cellCY(13), cx:7, cy:13,
     bodyAng:-Math.PI/2, turretAng:-Math.PI/2,
     speed:170, r:19, size:38,
@@ -888,6 +912,11 @@ function makePlayer(){
     xp:0, level:1, xpNext:28,
     inv:1.5, tripleT:0, trackOff:0, hitFlash:0, muzzle:0,
   };
+  // 沿用跨关保留的等级与已选天赋，满状态开局
+  p.xp = build.xp; p.level = build.level; p.xpNext = build.xpNext;
+  applyBuild(p);
+  p.hp = p.maxHp; p.shield = p.maxShield;
+  return p;
 }
 const ENEMY_TYPES = {
   scout:  { hp:22,  speed:120, r:17, size:34, dmg:8,  bspeed:270, cool:2.2, exp:4,  score:50,  color:'#ff7ad9', name:'侦察机' },
@@ -1361,10 +1390,13 @@ function addExp(n){
   while(p.xp >= p.xpNext){
     p.xp -= p.xpNext;
     p.level++;
+    build.level = p.level;
+    p.xpNext = Math.min(MAX_XP_NEXT, Math.floor(p.xpNext*1.18 + 8));   // 升级需求平缓增长，设有上限避免过高
+    build.xpNext = p.xpNext;
     stats.upgrades = Math.max(stats.upgrades, p.level);   // 记录历史最高强化等级
-    p.xpNext = Math.floor(p.xpNext*1.35 + 6);
     pendingLv++;
   }
+  saveBuild();
   if(pendingLv>0 && state==='playing') openUpgrade();
 }
 const UPGRADES = [
@@ -1391,6 +1423,8 @@ function openUpgrade(){
     el.className='card';
     el.innerHTML = `<div class="tag" style="color:${u.color};text-shadow:0 0 12px ${u.color}">${u.tag}</div><h4>${u.name}</h4><p>${u.desc}</p>`;
     el.onclick = ()=>{
+      build.taken[u.id] = (build.taken[u.id]||0)+1;   // 记录天赋，跨关卡保留
+      saveBuild();
       u.apply(player); pendingLv--; Snd.levelup();
       explode(player.px,player.py,u.color,1);
       if(pendingLv>0){ openUpgrade(); }
