@@ -306,7 +306,7 @@ footer.help b{color:#7fa3b5}
     <div id="upgrade" class="overlay hidden">
       <h3>系统升级</h3>
       <div id="cards"></div>
-      <p style="font-size:11px;color:#5f7f92;letter-spacing:.2em">选择一项强化模块</p>
+      <p style="font-size:11px;color:#5f7f92;letter-spacing:.2em">从 5 个天赋中选择 1 项（跨关卡保留）</p>
     </div>
 
     <!-- 暂停 -->
@@ -617,11 +617,11 @@ function loadBuild(){
     if(raw){
       const b = JSON.parse(raw);
       if(b && typeof b.level==='number'){
-        return { level:Math.max(1,b.level)|0, xp:b.xp||0, xpNext:b.xpNext||28, taken:(b.taken&&b.taken.taken? b.taken.taken : b.taken)||{} };
+        return { level:Math.max(1,b.level)|0, xp:b.xp||0, xpNext:b.xpNext||20, taken:(b.taken&&b.taken.taken? b.taken.taken : b.taken)||{} };
       }
     }
   }catch(e){}
-  return { level:1, xp:0, xpNext:28, taken:{} };
+  return { level:1, xp:0, xpNext:20, taken:{} };
 }
 function saveBuild(){ try{ localStorage.setItem(BUILD_KEY, JSON.stringify(build)); }catch(e){} }
 // 在基础玩家属性上套用已存档的全部天赋
@@ -908,8 +908,8 @@ function makePlayer(){
     speed:170, r:19, size:38,
     hp:100, maxHp:100, shield:30, maxShield:30, shRegenT:0,
     cool:0, fireRate:2.6, dmg:10, lanes:1, pierce:0, magnet:60,
-    empEff:1, regen:0, thorn:0,
-    xp:0, level:1, xpNext:28,
+    empEff:1, regen:0, thorn:0, bspeed:1,
+    xp:0, level:1, xpNext:20,
     inv:1.5, tripleT:0, trackOff:0, hitFlash:0, muzzle:0,
   };
   // 沿用跨关保留的等级与已选天赋，满状态开局
@@ -1230,7 +1230,7 @@ function updatePlayer(dt){
     for(let i=0;i<lanes;i++){
       const off = (i-(lanes-1)/2)*spread;
       fire(p.px+Math.cos(p.turretAng)*22, p.py+Math.sin(p.turretAng)*22, p.turretAng+off,
-        { speed:520, dmg:p.dmg, pierce:p.pierce, color:'#00f0ff', reflect:0 });
+        { speed:Math.round(520*p.bspeed), dmg:p.dmg, pierce:p.pierce, color:'#00f0ff', reflect:0 });
     }
     p.muzzle = .07; Snd.shoot();
     addPart({ kind:'flash', x:p.px+Math.cos(p.turretAng)*26, y:p.py+Math.sin(p.turretAng)*26, life:.06, max:.06, color:'#aef7ff', r:10 });
@@ -1411,12 +1411,15 @@ const UPGRADES = [
   { id:'empc',  tag:'EMP', name:'EMP 核心', desc:'EMP 脉冲充能速度 +35%', color:'#ffb300', apply:p=>p.empEff*=1.35 },
   { id:'regen', tag:'REG', name:'纳米修复', desc:'每秒自动修复 +1.5 装甲', color:'#54ff9f', apply:p=>p.regen+=1.5 },
   { id:'thorn', tag:'THN', name:'反弹装甲', desc:'受击时释放冲击波反伤', color:'#ff7ad9', apply:p=>p.thorn+=30 },
+  { id:'bspeed',tag:'ＢVL', name:'弹道加速', desc:'子弹飞行速度 +30%', color:'#00f0ff', apply:p=>p.bspeed*=1.3 },
+  { id:'burst', tag:'BRST',name:'复仇连发', desc:'每发并行弹道 +1（可三连/多连发）', color:'#ffb300', apply:p=>p.lanes=Math.min(p.lanes+1,7), max:p=>p.lanes>=7 },
+  { id:'nova',  tag:'NVA', name:'终焉弹幕', desc:'追加一条扇面散射弹道', color:'#ff2e88', apply:p=>p.lanes=Math.min(p.lanes+2,8), max:p=>p.lanes>=8 },
 ];
 let upPool = [];
 function openUpgrade(){
   state = 'upgrade';
   const avail = UPGRADES.filter(u=>!(u.max && u.max(player)));
-  upPool = shuffle([...avail]).slice(0,3);
+  upPool = shuffle([...avail]).slice(0,5);   // 每次从 5 个天赋中选 1 个
   const wrap = $('cards'); wrap.innerHTML='';
   upPool.forEach(u=>{
     const el = document.createElement('div');
@@ -1535,6 +1538,7 @@ function killEnemy(e){
   else explode(e.px,e.py,e.color,1);
   Snd.boom(); shake = Math.max(shake, 4);
   score += e.score; addFloat(e.px,e.py-14,'+'+e.score, e.color);
+  addExp(e.exp);   // 击杀直接获得经验（不再只靠捡水晶），升级更快
   // 掉落能量水晶
   const n = randi(1,2);
   for(let i=0;i<n;i++){
