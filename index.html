@@ -219,6 +219,15 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:cro
 footer.help{font-size:11px;font-weight:600;letter-spacing:.14em;color:#4d6b7d;text-align:center;padding:0 8px}
 footer.help b{color:#7fa3b5}
 @media (max-height:640px){footer.help{display:none}#app{gap:4px}}
+#rotateOverlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:radial-gradient(circle at 50% 40%,#051b26 0%,#02090f 70%);color:#25d7ff;font-family:'Orbitron','Segoe UI',sans-serif;text-align:center}
+#rotateOverlay .rot-ico{width:80px;height:80px;border:3px solid #19b6ec;border-right-color:transparent;border-radius:50%;animation:rotSpin 1.2s linear infinite;box-shadow:0 0 24px rgba(25,182,236,.6)}
+#rotateOverlay .rot-phone{position:fixed;width:26px;height:46px;border:2px solid #25d7ff;border-radius:6px;animation:rotTilt 1.6s ease-in-out infinite,rotBloom 2s ease-in-out infinite}
+@keyframes rotSpin{to{transform:rotate(360deg)}}
+@keyframes rotTilt{0%,20%{transform:rotate(90deg)}60%,100%{transform:rotate(0deg)}}
+@keyframes rotBloom{0%,100%{box-shadow:0 0 6px rgba(37,215,255,.4)}50%{box-shadow:0 0 20px rgba(37,215,255,.9)}}
+#rotateOverlay .rot-t1{font-size:22px;font-weight:800;letter-spacing:.18em;text-shadow:0 0 12px rgba(37,215,255,.7)}
+#rotateOverlay .rot-t2{font-size:12px;color:#7fa3b5;letter-spacing:.3em}
+@media (orientation:portrait) and (hover:none){#rotateOverlay{display:flex}}
 </style>
 </head>
 <body>
@@ -2283,5 +2292,6 @@ loadMap(0);
 resetGame();
 state='menu';
 </script>
+<div id="rotateOverlay"><div class="rot-ico"><div class="rot-phone"></div></div><div class="rot-t1">请旋转设备</div><div class="rot-t2">竖屏体验欠佳 · 转为横屏自动进入</div></div>
 </body>
 </html>
