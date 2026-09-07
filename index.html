@@ -360,7 +360,7 @@ footer.help b{color:#7fa3b5}
           <button id="stX" class="btn ghost" style="padding:3px 12px;margin:0">✕</button>
         </div>
       </div>
-      <p style="flex:none;margin:0 0 2px;font-size:11px;color:#7fa3b5;letter-spacing:.18em;line-height:1.6">线性战役 · 逐关解锁，不可越级挑战 · 每关目标：击败本关 BOSS</p>
+      <p style="flex:none;margin:0 0 2px;font-size:11px;color:#7fa3b5;letter-spacing:.18em;line-height:1.6">战役自由挑战 · 全部关卡均可直接进入 · 每关目标：击败本关 BOSS</p>
       <div id="stGrid" class="hall-grid st-grid"></div>
       <div style="flex:none;display:flex;justify-content:center;padding-top:8px">
         <button id="stBack" class="btn ghost">返回基地</button>
@@ -778,10 +778,11 @@ function loadMap(idx){
   // 初始化每块砖墙的耐久
   brickHp = Array.from({length:ROWS}, ()=>new Array(COLS).fill(0));
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(grid[r][c]===T_BRICK) brickHp[r][c]=BRICK_HP;
-  // 基地防御圈：基地(7,14)，两侧与前排角位砖墙，中央留给玩家出入口
+  // 基地防御圈：仅保留基地两侧少量砖墙，并强制清空出生点(7,13)及其上方/两侧通路，防止被地形堵死
   tileSet(7,14,T_BASE);
-  [[6,13],[8,13],[6,14],[8,14]].forEach(([c,r])=>{ tileSet(c,r,T_BRICK); if(brickHp[r]) brickHp[r][c]=BRICK_HP; });
-  [[0,0],[7,0],[14,0]].forEach(([c,r])=>tileSet(c,r,T_EMPTY)); // 出生点保持畅通
+  [[6,14],[8,14]].forEach(([c,r])=>{ tileSet(c,r,T_BRICK); if(brickHp[r]) brickHp[r][c]=BRICK_HP; });
+  [[7,12],[6,13],[7,13],[8,13]].forEach(([c,r])=>tileSet(c,r,T_EMPTY)); // 出生区开出一条出路
+  [[0,0],[7,0],[14,0]].forEach(([c,r])=>tileSet(c,r,T_EMPTY)); // 顶部出生点保持畅通
 }
 
 // ---------- 游戏状态 ----------
@@ -1037,26 +1038,23 @@ function stageWin(){
   showOverlay('stageWin');
   Snd.crystal();
 }
-// 渲染战役选关面板：锁定关卡不可点击，避免越级
+// 渲染战役选关面板：所有关卡一律可自由挑战，不做进度锁定
 function renderStages(){
   const g = $('stGrid'); g.innerHTML='';
   for(const s of STAGES){
-    const unlocked = s.n <= stageMax;
     const cur = (s.n===stageK);
     const d = document.createElement('div');
-    d.className = 'st-node' + (unlocked?'':' locked') + (cur?' cur':'');
+    d.className = 'st-node' + (cur?' cur':'');
     d.innerHTML =
       '<div class="st-icon">'+s.icon+'</div>'+
       '<div class="st-n">第 '+s.n+' 关</div>'+
       '<div class="st-name">'+s.name+'</div>'+
       '<div class="st-desc">'+s.desc+'</div>'+
-      (unlocked
-        ? '<button class="btn st-go">'+(cur?'重打本关':'进入战斗')+'</button>'
-        : '<div class="st-lock">🔒 需通关第 '+(s.n-1)+' 关解锁</div>');
-    if(unlocked) d.querySelector('.st-go').onclick = ()=>{ startStage(s.n); };
+      '<button class="btn st-go">'+(cur?'重打本关':'进入战斗')+'</button>';
+    d.querySelector('.st-go').onclick = ()=>{ startStage(s.n); };
     g.appendChild(d);
   }
-  $('stGot').textContent = stageMax-1;   // 已通关数
+  $('stGot').textContent = STAGES.length;   // 全部关卡均可直接挑战
   $('stTotal').textContent = STAGES.length;
 }
 function startWave(n){
